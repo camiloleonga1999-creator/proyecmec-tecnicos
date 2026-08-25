@@ -259,6 +259,24 @@ tr:last-child td{border-bottom:none;}
 .empty-state{text-align:center;padding:60px 20px;color:var(--text-dim);}
 .empty-state .big{font-family:var(--font-display);font-size:18px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;}
 
+.only-print{display:none;}
+.print-header{margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--text);}
+.print-header .row1{display:flex;justify-content:space-between;align-items:center;font-family:var(--font-display);font-size:20px;text-transform:uppercase;}
+.print-header .row2{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-top:4px;}
+
+@media print{
+  body{background:#fff;}
+  .bg-watermark{opacity:0.05;}
+  .sidebar, .toolbar, .report-controls, .nav, #kanban-tabs{display:none !important;}
+  .main{padding:0;}
+  .view{display:none !important;}
+  .view.active{display:block !important;}
+  .only-print{display:block;}
+  .chart-box{break-inside:avoid;border:1px solid #ccc;box-shadow:none;}
+  .stat-card{break-inside:avoid;}
+  table{border:1px solid #ccc;}
+}
+
 @media(max-width:900px){
   .shell{grid-template-columns:1fr;}
   .main{padding-bottom:84px;}
@@ -305,8 +323,8 @@ tr:last-child td{border-bottom:none;}
     </div>
     <div class="login-body">
       <div class="field">
-        <label>Correo</label>
-        <input type="email" id="login-email" placeholder="usuario@proyecmec.com">
+        <label>Usuario</label>
+        <input type="text" id="login-usuario" placeholder="jperez" autocapitalize="off" autocomplete="username">
       </div>
       <div class="field">
         <label>Contraseña</label>
@@ -413,7 +431,7 @@ tr:last-child td{border-bottom:none;}
           <button class="btn btn-primary btn-sm" onclick="openUserModal()">➕ Nuevo usuario</button>
         </div>
         <table>
-          <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
           <tbody id="users-table-body"></tbody>
         </table>
       </div>
@@ -421,7 +439,10 @@ tr:last-child td{border-bottom:none;}
       <!-- ===== INFORMES VIEW ===== -->
       <div class="view" id="view-informes">
         <div class="view-header">
-          <div><h1>Informe de Rendimiento</h1><div class="sub">// tiempos y cumplimiento por técnico</div></div>
+          <div><h1>Informe de Rendimiento</h1><div class="sub">// tiempos, eficiencia y cumplimiento por técnico</div></div>
+          <div class="toolbar">
+            <button class="btn btn-outline btn-sm" onclick="window.print()">🖨 Imprimir informe</button>
+          </div>
         </div>
         <div class="report-controls">
           <div class="field">
@@ -437,6 +458,7 @@ tr:last-child td{border-bottom:none;}
             <input type="date" id="report-hasta" onchange="renderInformes()">
           </div>
         </div>
+        <div class="only-print print-header" id="print-header"></div>
         <div class="stat-cards" id="report-stats"></div>
         <div class="chart-box">
           <h4>Órdenes entregadas por técnico</h4>
@@ -449,6 +471,24 @@ tr:last-child td{border-bottom:none;}
         <div class="chart-box">
           <h4>Tiempo activo vs. tiempo pausado (horas totales)</h4>
           <div class="chart-canvas-wrap"><canvas id="chart-activo-pausado"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <h4>Eficiencia por técnico (% tiempo activo sobre tiempo total)</h4>
+          <div class="chart-canvas-wrap"><canvas id="chart-eficiencia"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <h4>Novedades reportadas por técnico (interrupciones de trabajo)</h4>
+          <div class="chart-canvas-wrap"><canvas id="chart-novedades"></canvas></div>
+        </div>
+        <div class="chart-box" style="padding:0;overflow-x:auto;">
+          <h4 style="padding:18px 18px 0;">Detalle por técnico</h4>
+          <table style="border:none;margin-top:10px;">
+            <thead><tr>
+              <th>Técnico</th><th>Órdenes</th><th>Entregadas</th><th>Tiempo activo</th>
+              <th>Tiempo pausado</th><th>Promedio/orden</th><th>Eficiencia</th><th>Novedades</th>
+            </tr></thead>
+            <tbody id="report-tabla-body"></tbody>
+          </table>
         </div>
       </div>
 
@@ -491,7 +531,7 @@ tr:last-child td{border-bottom:none;}
     <div class="modal-head"><h3>Nuevo Usuario</h3><button class="modal-close" onclick="closeModal('modal-usuario')">✕</button></div>
     <div class="modal-body">
       <div class="field"><label>Nombre completo</label><input type="text" id="user-nombre"></div>
-      <div class="field"><label>Correo</label><input type="email" id="user-email"></div>
+      <div class="field"><label>Usuario del sistema</label><input type="text" id="user-usuario" placeholder="jperez (sin espacios ni @)" autocapitalize="off"></div>
       <div class="field"><label>Contraseña temporal</label><input type="text" id="user-pass" placeholder="mínimo 6 caracteres"></div>
       <div class="field">
         <label>Rol</label>
@@ -535,6 +575,25 @@ const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
 const secondaryAuth = secondaryApp.auth();
 
 const MAQUINAS = ["Fresa","Torno","Soldadura","Banco de soldadura","Trabajo locativo"];
+// Firebase Auth exige un "correo" internamente, pero el sistema funciona con
+// nombre de usuario simple: por dentro se arma un correo ficticio invisible
+// para el técnico/admin, ej: "jperez" -> "jperez@proyecmec-tecnicos.local"
+const AUTH_DOMAIN = '@proyecmec-tecnicos.local';
+function usuarioToAuthEmail(usuario){
+  return usuario.trim().toLowerCase().replace(/\s+/g,'') + AUTH_DOMAIN;
+}
+function friendlyAuthError(err){
+  const map = {
+    'auth/user-not-found':'Usuario o contraseña incorrectos.',
+    'auth/wrong-password':'Usuario o contraseña incorrectos.',
+    'auth/invalid-credential':'Usuario o contraseña incorrectos.',
+    'auth/invalid-login-credentials':'Usuario o contraseña incorrectos.',
+    'auth/email-already-in-use':'Ese nombre de usuario ya existe, elige otro.',
+    'auth/weak-password':'La contraseña es muy débil (mínimo 6 caracteres).',
+    'auth/invalid-email':'El nombre de usuario tiene caracteres no permitidos.'
+  };
+  return map[err.code] || ('Error: '+err.message);
+}
 
 let currentUser = null;   // { uid, nombre, rol, email }
 let tickets = [];
@@ -542,7 +601,7 @@ let usuarios = [];
 let selectedPhotos = [];  // { file, dataUrl } antes de subir
 let novedadTicketId = null;
 let timerInterval = null;
-let chartEntregadas, chartTiempoProm, chartActivoPausado;
+let chartEntregadas, chartTiempoProm, chartActivoPausado, chartEficiencia, chartNovedades;
 let kanbanTab = 'en_proceso'; // pestaña activa en vista móvil
 
 function setKanbanTab(tab){
@@ -557,13 +616,16 @@ function setKanbanTab(tab){
 
 /* ===================== AUTH ===================== */
 function doLogin(){
-  const email = document.getElementById('login-email').value.trim();
+  const raw = document.getElementById('login-usuario').value.trim();
   const pass = document.getElementById('login-pass').value;
   const errEl = document.getElementById('login-error');
   errEl.style.display = 'none';
-  if(!email || !pass){ showLoginError('Completa correo y contraseña.'); return; }
+  if(!raw || !pass){ showLoginError('Completa usuario y contraseña.'); return; }
+  // si alguien escribe un correo real (cuentas antiguas), se respeta tal cual;
+  // si no, se arma el correo interno a partir del nombre de usuario
+  const email = raw.includes('@') ? raw : usuarioToAuthEmail(raw);
   auth.signInWithEmailAndPassword(email, pass).catch(err=>{
-    showLoginError('Error real de Firebase: ['+err.code+'] '+err.message);
+    showLoginError(friendlyAuthError(err));
   });
 }
 function showLoginError(msg){
@@ -590,7 +652,8 @@ auth.onAuthStateChanged(async (user)=>{
         auth.signOut();
         return;
       }
-      currentUser = { uid:user.uid, email:user.email, nombre:data.nombre, rol:data.rol };
+      const rolNormalizado = (data.rol||'tecnico').toString().trim().toLowerCase();
+      currentUser = { uid:user.uid, email:user.email, nombre:data.nombre, rol:rolNormalizado };
       document.getElementById('login-screen').style.display='none';
       document.getElementById('app').style.display='block';
       document.getElementById('user-name').textContent = currentUser.nombre;
@@ -996,34 +1059,37 @@ function closeModal(id){
 /* ===================== USUARIOS (admin) ===================== */
 function openUserModal(){
   document.getElementById('user-nombre').value='';
-  document.getElementById('user-email').value='';
+  document.getElementById('user-usuario').value='';
   document.getElementById('user-pass').value='';
   document.getElementById('user-rol').value='tecnico';
   document.getElementById('modal-usuario').classList.add('open');
 }
 async function crearUsuario(){
   const nombre = document.getElementById('user-nombre').value.trim();
-  const email = document.getElementById('user-email').value.trim();
+  const usuario = document.getElementById('user-usuario').value.trim();
   const pass = document.getElementById('user-pass').value;
   const rol = document.getElementById('user-rol').value;
-  if(!nombre || !email || pass.length<6){ showToast('Completa todos los campos (contraseña mínimo 6 caracteres).', true); return; }
+  if(!nombre || !usuario || pass.length<6){ showToast('Completa todos los campos (contraseña mínimo 6 caracteres).', true); return; }
+  if(!/^[a-zA-Z0-9._-]+$/.test(usuario)){ showToast('El usuario solo puede tener letras, números, puntos, guiones (sin espacios ni @).', true); return; }
+  const usuarioNorm = usuario.toLowerCase();
+  const authEmail = usuarioToAuthEmail(usuarioNorm);
   try{
-    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, pass);
+    const cred = await secondaryAuth.createUserWithEmailAndPassword(authEmail, pass);
     await db.collection('usuarios').doc(cred.user.uid).set({
-      nombre, email, rol, activo:true, createdAt: Date.now()
+      nombre, usuario:usuarioNorm, rol, activo:true, createdAt: Date.now()
     });
     await secondaryAuth.signOut();
     closeModal('modal-usuario');
     showToast('Usuario creado correctamente.');
   }catch(err){
-    showToast('Error: '+err.message, true);
+    showToast(friendlyAuthError(err), true);
   }
 }
 function renderUsuarios(){
   document.getElementById('users-table-body').innerHTML = usuarios.map(u=>`
     <tr>
       <td>${escapeHtml(u.nombre)}</td>
-      <td>${escapeHtml(u.email||'')}</td>
+      <td>${escapeHtml(u.usuario ? u.usuario : (u.email||'—'))}</td>
       <td><span class="badge ${u.rol}">${u.rol}</span></td>
       <td>${u.activo===false ? '<span class="badge inactivo">Inactivo</span>' : '<span style="color:var(--green);font-size:12px;">Activo</span>'}</td>
       <td><button class="btn btn-outline btn-sm" onclick="toggleUsuario('${u.id}', ${u.activo===false})">${u.activo===false?'Activar':'Desactivar'}</button></td>
@@ -1057,21 +1123,32 @@ function renderInformes(){
   const totalOrdenes = list.length;
   const totalEntregadas = entregadas.length;
   const tiempoActivoTotal = entregadas.reduce((a,t)=>a+(t.tiempoActivoMs||0),0);
+  const tiempoPausadoTotal = entregadas.reduce((a,t)=>a+(t.tiempoPausadoMs||0),0);
   const tiempoPromedio = totalEntregadas ? tiempoActivoTotal/totalEntregadas : 0;
   const totalNovedades = list.reduce((a,t)=>a+((t.novedades||[]).length),0);
+  const eficienciaGlobal = (tiempoActivoTotal+tiempoPausadoTotal) ? (tiempoActivoTotal/(tiempoActivoTotal+tiempoPausadoTotal)*100) : 0;
 
   document.getElementById('report-stats').innerHTML = `
     <div class="stat-card"><div class="label">Órdenes en rango</div><div class="value">${totalOrdenes}</div></div>
     <div class="stat-card"><div class="label">Entregadas</div><div class="value">${totalEntregadas}</div></div>
     <div class="stat-card"><div class="label">Tiempo promedio</div><div class="value">${fmtDuration(tiempoPromedio)}</div></div>
     <div class="stat-card"><div class="label">Novedades reportadas</div><div class="value">${totalNovedades}</div></div>
+    <div class="stat-card"><div class="label">Eficiencia global</div><div class="value">${eficienciaGlobal.toFixed(0)}%</div></div>
+  `;
+
+  const hoy = new Date();
+  const rangoTxt = (desdeStr?desdeStr:'inicio') + '  →  ' + (hastaStr?hastaStr:'hoy');
+  document.getElementById('print-header').innerHTML = `
+    <div class="row1"><span>Proyecmec — Informe de Rendimiento de Técnicos</span><span>${hoy.toLocaleDateString('es-CO')}</span></div>
+    <div class="row2">Técnico: ${tecnico||'Todos'}  ·  Periodo: ${rangoTxt}  ·  Generado ${hoy.toLocaleString('es-CO')}</div>
   `;
 
   // agrupar por técnico
   const porTecnico = {};
   list.forEach(t=>{
-    if(!porTecnico[t.tecnicoNombre]) porTecnico[t.tecnicoNombre] = {entregadas:0, activoMs:0, pausadoMs:0, count:0};
+    if(!porTecnico[t.tecnicoNombre]) porTecnico[t.tecnicoNombre] = {entregadas:0, activoMs:0, pausadoMs:0, count:0, novedades:0};
     porTecnico[t.tecnicoNombre].count++;
+    porTecnico[t.tecnicoNombre].novedades += (t.novedades||[]).length;
     if(t.estado==='entregado'){
       porTecnico[t.tecnicoNombre].entregadas++;
       porTecnico[t.tecnicoNombre].activoMs += (t.tiempoActivoMs||0);
@@ -1083,10 +1160,35 @@ function renderInformes(){
   const promedioData = labels.map(l=> porTecnico[l].entregadas ? (porTecnico[l].activoMs/porTecnico[l].entregadas/3600000) : 0);
   const activoData = labels.map(l=> porTecnico[l].activoMs/3600000);
   const pausadoData = labels.map(l=> porTecnico[l].pausadoMs/3600000);
+  const novedadesData = labels.map(l=> porTecnico[l].novedades);
+  const eficienciaData = labels.map(l=>{
+    const p = porTecnico[l];
+    const tot = p.activoMs+p.pausadoMs;
+    return tot ? (p.activoMs/tot*100) : 0;
+  });
+
+  document.getElementById('report-tabla-body').innerHTML = labels.length===0 ?
+    '<tr><td colspan="8" style="text-align:center;color:var(--text-dim);">Sin datos en este rango</td></tr>' :
+    labels.map(l=>{
+      const p = porTecnico[l];
+      const eficiencia = eficienciaData[labels.indexOf(l)];
+      return `<tr>
+        <td>${escapeHtml(l)}</td>
+        <td>${p.count}</td>
+        <td>${p.entregadas}</td>
+        <td class="mono">${fmtDuration(p.activoMs)}</td>
+        <td class="mono">${fmtDuration(p.pausadoMs)}</td>
+        <td class="mono">${fmtDuration(p.entregadas?p.activoMs/p.entregadas:0)}</td>
+        <td><b style="color:${eficiencia>=75?'var(--green)':eficiencia>=50?'var(--amber)':'var(--red)'}">${eficiencia.toFixed(0)}%</b></td>
+        <td>${p.novedades}</td>
+      </tr>`;
+    }).join('');
 
   const chartColors = {amber:'#c9862e', blue:'#21807b', red:'#b23b2e', green:'#2f9d5b', grid:'#dde3ea', text:'#5c6470'};
   Chart.defaults.color = chartColors.text;
   Chart.defaults.font.family = 'JetBrains Mono';
+  Chart.defaults.responsive = true;
+  Chart.defaults.maintainAspectRatio = false;
 
   if(chartEntregadas) chartEntregadas.destroy();
   chartEntregadas = new Chart(document.getElementById('chart-entregadas'), {
@@ -1110,6 +1212,20 @@ function renderInformes(){
       {label:'Pausado (h)', data:pausadoData, backgroundColor:chartColors.red}
     ]},
     options:{scales:{y:{beginAtZero:true, grid:{color:chartColors.grid}, stacked:true}, x:{grid:{display:false}, stacked:true}}, plugins:{legend:{display:true}}}
+  });
+
+  if(chartEficiencia) chartEficiencia.destroy();
+  chartEficiencia = new Chart(document.getElementById('chart-eficiencia'), {
+    type:'bar',
+    data:{labels, datasets:[{label:'Eficiencia %', data:eficienciaData, backgroundColor:labels.map((l,i)=> eficienciaData[i]>=75?chartColors.green:eficienciaData[i]>=50?chartColors.amber:chartColors.red)}]},
+    options:{indexAxis:'y', scales:{x:{beginAtZero:true, max:100, grid:{color:chartColors.grid}}, y:{grid:{display:false}}}, plugins:{legend:{display:false}}}
+  });
+
+  if(chartNovedades) chartNovedades.destroy();
+  chartNovedades = new Chart(document.getElementById('chart-novedades'), {
+    type:'bar',
+    data:{labels, datasets:[{label:'Novedades', data:novedadesData, backgroundColor:chartColors.red}]},
+    options:{scales:{y:{beginAtZero:true, grid:{color:chartColors.grid}}, x:{grid:{display:false}}}, plugins:{legend:{display:false}}}
   });
 }
 
