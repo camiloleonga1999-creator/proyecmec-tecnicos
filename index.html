@@ -125,6 +125,7 @@ body{
 .nav-item:hover{background:var(--panel-raised);color:var(--text);}
 .nav-item.active{background:var(--panel-raised);color:var(--amber);border-left-color:var(--amber);}
 .sidebar-footer{padding:14px 20px;border-top:1px solid var(--border);}
+.nav-logout-mobile{display:none;}
 
 .main{padding:24px 28px;overflow-x:auto;}
 .view{display:none;}
@@ -293,6 +294,7 @@ tr:last-child td{border-bottom:none;}
     text-align:center;white-space:nowrap;
   }
   .nav-item.active{background:transparent;border-top-color:var(--amber);}
+  .nav-logout-mobile{display:flex;color:var(--red);}
   .kanban{grid-template-columns:1fr;}
   .checkbox-grid{grid-template-columns:1fr;}
   .photo-grid{grid-template-columns:repeat(3,1fr);}
@@ -353,6 +355,7 @@ tr:last-child td{border-bottom:none;}
         <div class="nav-item" data-view="nuevo" onclick="switchView('nuevo')" id="nav-nuevo">➕ Nueva Orden</div>
         <div class="nav-item admin-only" data-view="usuarios" onclick="switchView('usuarios')" style="display:none">👥 Usuarios</div>
         <div class="nav-item admin-only" data-view="informes" onclick="switchView('informes')" style="display:none">📊 Informes</div>
+        <div class="nav-item nav-logout-mobile" onclick="doLogout()">🚪 Salir</div>
       </div>
       <div class="sidebar-footer">
         <button class="btn btn-outline btn-block btn-sm" onclick="doLogout()">Cerrar sesión</button>
