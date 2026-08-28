@@ -54,9 +54,11 @@ body{
   z-index:0;
 }
 #login-screen, #app{ position:relative; z-index:1; }
-::-webkit-scrollbar{width:8px;height:8px;}
-::-webkit-scrollbar-track{background:var(--panel);}
-::-webkit-scrollbar-thumb{background:var(--steel);border-radius:4px;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:var(--panel-raised);}
+::-webkit-scrollbar-thumb{background:#a8b0ba;border-radius:5px;border:2px solid var(--panel-raised);}
+::-webkit-scrollbar-thumb:hover{background:#8b939b;}
+.kcol-body{scrollbar-width:thin;scrollbar-color:#a8b0ba var(--panel-raised);} /* Firefox */
 
 /* ===== hazard stripe utility ===== */
 .hazard{
@@ -137,7 +139,7 @@ body{
 /* ===== kanban ===== */
 .kanban{display:grid;grid-template-columns:repeat(3,minmax(300px,1fr));gap:16px;align-items:start;}
 .kanban-tabs{display:none;}
-@media(max-width:900px){
+@media screen and (max-width:900px){
   .kanban-tabs{
     display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;
   }
@@ -265,20 +267,42 @@ tr:last-child td{border-bottom:none;}
 .print-header .row1{display:flex;justify-content:space-between;align-items:center;font-family:var(--font-display);font-size:20px;text-transform:uppercase;}
 .print-header .row2{font-family:var(--font-mono);font-size:12px;color:var(--text-muted);margin-top:4px;}
 
+.report-table-box{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.report-table{border:none;margin-top:10px;width:100%;min-width:720px;}
+
+@page{ margin:14mm 10mm; }
 @media print{
-  body{background:#fff;}
-  .bg-watermark{opacity:0.05;}
+  html, body{width:100%;background:#fff;}
+  .bg-watermark{display:none !important;}
+  .shell{display:block !important;} /* aquí estaba el problema real: el grid de 220px+1fr seguía reservando espacio para el menú aunque estuviera oculto, y eso apretaba y corría todo el contenido */
   .sidebar, .toolbar, .report-controls, .nav, #kanban-tabs{display:none !important;}
-  .main{padding:0;}
+  .main{padding:0;width:100%;max-width:100%;overflow:visible;}
   .view{display:none !important;}
-  .view.active{display:block !important;}
+  .view.active{display:block !important;width:100%;}
   .only-print{display:block;}
-  .chart-box{break-inside:avoid;border:1px solid #ccc;box-shadow:none;}
-  .stat-card{break-inside:avoid;}
-  table{border:1px solid #ccc;}
+  .chart-box{break-inside:avoid;page-break-inside:avoid;border:1px solid #ccc;box-shadow:none;padding:12px;width:100%;}
+  .report-table-box{break-inside:auto;page-break-inside:auto;}
+  thead{display:table-header-group;} /* repite el encabezado de la tabla en cada página nueva */
+  .chart-canvas-wrap{height:220px;width:100%;}
+  .stat-cards{grid-template-columns:repeat(5,1fr);width:100%;}
+  .stat-card{break-inside:avoid;page-break-inside:avoid;padding:10px;}
+  .stat-card .value{font-size:20px;}
+  table{border:1px solid #ccc;width:100%;}
+  /* la tabla de detalle: nada de scroll (se corta en papel), ancho fijo y letra chica para que quepan las 8 columnas */
+  .report-table-box{overflow:visible !important;}
+  .report-table{min-width:0 !important;width:100%;table-layout:fixed;font-size:9.5px;}
+  .report-table th, .report-table td{padding:5px 4px;word-break:break-word;white-space:normal;}
+  .report-table th:nth-child(1), .report-table td:nth-child(1){width:17%;}
+  .report-table th:nth-child(2), .report-table td:nth-child(2){width:8%;}
+  .report-table th:nth-child(3), .report-table td:nth-child(3){width:10%;}
+  .report-table th:nth-child(4), .report-table td:nth-child(4){width:14%;}
+  .report-table th:nth-child(5), .report-table td:nth-child(5){width:14%;}
+  .report-table th:nth-child(6), .report-table td:nth-child(6){width:13%;}
+  .report-table th:nth-child(7), .report-table td:nth-child(7){width:12%;}
+  .report-table th:nth-child(8), .report-table td:nth-child(8){width:12%;}
 }
 
-@media(max-width:900px){
+@media screen and (max-width:900px){
   .shell{grid-template-columns:1fr;}
   .main{padding-bottom:84px;}
   .sidebar{
@@ -305,7 +329,7 @@ tr:last-child td{border-bottom:none;}
   .report-controls .field{min-width:0;width:100%;}
   .detail-grid{grid-template-columns:1fr;}
 }
-@media(max-width:520px){
+@media screen and (max-width:520px){
   .view-header h1{font-size:20px;}
   .stat-cards{grid-template-columns:1fr 1fr;}
   .timer-display{font-size:26px;}
@@ -372,6 +396,8 @@ tr:last-child td{border-bottom:none;}
             <div class="sub" id="kanban-sub">// cargando...</div>
           </div>
           <div class="toolbar">
+            <input type="text" id="search-orden" placeholder="🔍 Buscar por folio, descripción o técnico..." oninput="renderKanban()"
+              style="background:var(--void);border:1px solid var(--border);color:var(--text);padding:9px 12px;font-size:12px;border-radius:2px;min-width:220px;">
             <select class="field" id="filter-tecnico" onchange="renderKanban()" style="background:var(--void);border:1px solid var(--border);color:var(--text);padding:9px 12px;font-size:12px;border-radius:2px;">
               <option value="">Todos los técnicos</option>
             </select>
@@ -437,6 +463,7 @@ tr:last-child td{border-bottom:none;}
           <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
           <tbody id="users-table-body"></tbody>
         </table>
+        <div id="huerfanos-section" style="margin-top:20px;"></div>
       </div>
 
       <!-- ===== INFORMES VIEW ===== -->
@@ -483,9 +510,9 @@ tr:last-child td{border-bottom:none;}
           <h4>Novedades reportadas por técnico (interrupciones de trabajo)</h4>
           <div class="chart-canvas-wrap"><canvas id="chart-novedades"></canvas></div>
         </div>
-        <div class="chart-box" style="padding:0;overflow-x:auto;">
+        <div class="chart-box report-table-box">
           <h4 style="padding:18px 18px 0;">Detalle por técnico</h4>
-          <table style="border:none;margin-top:10px;">
+          <table class="report-table">
             <thead><tr>
               <th>Técnico</th><th>Órdenes</th><th>Entregadas</th><th>Tiempo activo</th>
               <th>Tiempo pausado</th><th>Promedio/orden</th><th>Eficiencia</th><th>Novedades</th>
@@ -695,7 +722,22 @@ function switchView(name){
   if(name==='usuarios') renderUsuarios();
   if(name==='informes') renderInformes();
   if(name==='nuevo') resetNuevaOrdenForm();
+  if(name==='kanban') setTimeout(ajustarAlturaKanban, 0);
 }
+
+/* Mide el espacio real que queda debajo del encabezado (que puede cambiar de tamaño
+   con el tiempo, ej: al agregar la barra de búsqueda) y le da a cada columna del
+   tablero exactamente ese alto, para que scrollee por dentro en vez de empujar
+   toda la página. Se recalcula solo, sin depender de un número fijo adivinado. */
+function ajustarAlturaKanban(){
+  document.querySelectorAll('.kcol-body').forEach(el=>{
+    if(el.offsetParent === null) return; // columna oculta (pestaña móvil), no aplica
+    const top = el.getBoundingClientRect().top;
+    const disponible = window.innerHeight - top - 16;
+    el.style.maxHeight = Math.max(disponible, 180) + 'px';
+  });
+}
+window.addEventListener('resize', ajustarAlturaKanban);
 
 /* ===================== FIRESTORE LISTENERS ===================== */
 let unsubTickets = null;
@@ -708,12 +750,14 @@ function initListeners(){
     tickets = snap.docs.map(d=>({id:d.id, ...d.data()}));
     renderKanban();
     populateFilterTecnico();
+    if(currentUser && currentUser.rol==='admin') renderHuerfanos();
   });
   unsubUsuarios = db.collection('usuarios').onSnapshot(snap=>{
     usuarios = snap.docs.map(d=>({id:d.id, ...d.data()}));
     if(currentUser && currentUser.rol==='admin'){
       renderUsuarios();
       populateReportTecnico();
+      renderHuerfanos();
     }
   });
 }
@@ -729,12 +773,21 @@ function populateFilterTecnico(){
 
 function renderKanban(){
   const filtro = document.getElementById('filter-tecnico').value;
+  const busqueda = document.getElementById('search-orden').value.trim().toLowerCase();
   let list = tickets;
   if(currentUser.rol !== 'admin'){
     list = list.filter(t=>t.tecnicoId === currentUser.uid);
   }
   if(filtro){
     list = list.filter(t=>t.tecnicoNombre === filtro);
+  }
+  if(busqueda){
+    list = list.filter(t=>
+      (t.folio||'').toLowerCase().includes(busqueda) ||
+      (t.descripcion||'').toLowerCase().includes(busqueda) ||
+      (t.tecnicoNombre||'').toLowerCase().includes(busqueda) ||
+      (t.maquinas||[]).some(m=>m.toLowerCase().includes(busqueda))
+    );
   }
   document.getElementById('kanban-sub').textContent = `// ${list.length} orden(es) visibles — ${currentUser.rol==='admin'?'vista completa':'tus órdenes'}`;
 
@@ -751,6 +804,7 @@ function renderKanban(){
     }
   });
   setKanbanTab(kanbanTab);
+  ajustarAlturaKanban();
 }
 
 function elapsedActiveMs(t, nowMs){
@@ -1108,12 +1162,81 @@ function renderUsuarios(){
       <td>${escapeHtml(u.usuario ? u.usuario : (u.email||'—'))}</td>
       <td><span class="badge ${u.rol}">${u.rol}</span></td>
       <td>${u.activo===false ? '<span class="badge inactivo">Inactivo</span>' : '<span style="color:var(--green);font-size:12px;">Activo</span>'}</td>
-      <td><button class="btn btn-outline btn-sm" onclick="toggleUsuario('${u.id}', ${u.activo===false})">${u.activo===false?'Activar':'Desactivar'}</button></td>
+      <td style="white-space:nowrap;display:flex;gap:6px;">
+        <button class="btn btn-outline btn-sm" onclick="toggleUsuario('${u.id}', ${u.activo===false})">${u.activo===false?'Activar':'Desactivar'}</button>
+        ${u.id!==currentUser.uid ? `<button class="btn btn-danger btn-sm" onclick="eliminarUsuario('${u.id}','${escapeHtml(u.nombre)}')">Eliminar</button>` : ''}
+      </td>
     </tr>`).join('');
 }
 async function toggleUsuario(id, activar){
   await db.collection('usuarios').doc(id).update({activo: activar});
   showToast(activar?'Usuario activado.':'Usuario desactivado.');
+}
+async function eliminarUsuario(id, nombre){
+  if(id === currentUser.uid){ showToast('No puedes eliminar tu propio usuario.', true); return; }
+  if(!confirm('¿Eliminar a '+nombre+' y TODAS sus órdenes de trabajo?\n\nEsta acción no se puede deshacer: se borrarán también sus fotos y su historial de tiempos, y desaparecerá de los Informes.')) return;
+  try{
+    const snapTickets = await db.collection('tickets').where('tecnicoId','==',id).get();
+    for(const doc of snapTickets.docs){
+      const t = doc.data();
+      for(const url of (t.fotos||[])){
+        try{ await storage.refFromURL(url).delete(); }
+        catch(e){ /* si la foto ya no existe o falla el borrado, se continúa igual */ }
+      }
+      await doc.ref.delete();
+    }
+    await db.collection('usuarios').doc(id).delete();
+    showToast('Usuario y '+snapTickets.size+' orden(es) eliminados.');
+  }catch(err){
+    showToast('Error al eliminar: '+err.message, true);
+  }
+}
+
+/* Detecta órdenes cuyo técnico ya no existe en la colección usuarios
+   (por ejemplo, si se borró un usuario antes de tener esta limpieza automática)
+   y deja eliminarlas en bloque desde aquí. */
+function renderHuerfanos(){
+  const el = document.getElementById('huerfanos-section');
+  if(!el) return;
+  const idsActivos = new Set(usuarios.map(u=>u.id));
+  const huerfanas = {};
+  tickets.forEach(t=>{
+    if(!idsActivos.has(t.tecnicoId)){
+      if(!huerfanas[t.tecnicoId]) huerfanas[t.tecnicoId] = {nombre:t.tecnicoNombre, count:0};
+      huerfanas[t.tecnicoId].count++;
+    }
+  });
+  const ids = Object.keys(huerfanas);
+  if(ids.length===0){ el.innerHTML=''; return; }
+  el.innerHTML = `
+    <div class="chart-box" style="border-color:var(--red);">
+      <h4 style="color:var(--red);">⚠ Órdenes de técnicos ya eliminados</h4>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;margin-top:-8px;">Estas órdenes quedaron sueltas porque el usuario que las creó ya no existe en el sistema. Puedes eliminarlas para que dejen de contar en los Informes.</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        ${ids.map(id=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--void);padding:10px 12px;border:1px solid var(--border);border-radius:2px;flex-wrap:wrap;">
+            <span style="font-size:13px;">${escapeHtml(huerfanas[id].nombre)} — ${huerfanas[id].count} orden(es) huérfana(s)</span>
+            <button class="btn btn-danger btn-sm" onclick="eliminarHuerfanas('${id}','${escapeHtml(huerfanas[id].nombre)}')">Eliminar todas</button>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+async function eliminarHuerfanas(tecnicoId, nombre){
+  if(!confirm('¿Eliminar todas las órdenes huérfanas de '+nombre+'? Esta acción no se puede deshacer.')) return;
+  try{
+    const snapTickets = await db.collection('tickets').where('tecnicoId','==',tecnicoId).get();
+    for(const doc of snapTickets.docs){
+      const t = doc.data();
+      for(const url of (t.fotos||[])){
+        try{ await storage.refFromURL(url).delete(); }
+        catch(e){ /* se ignora si la foto ya no existe */ }
+      }
+      await doc.ref.delete();
+    }
+    showToast('Se eliminaron '+snapTickets.size+' orden(es) huérfana(s).');
+  }catch(err){
+    showToast('Error al eliminar: '+err.message, true);
+  }
 }
 
 /* ===================== INFORMES (admin) ===================== */
@@ -1243,6 +1366,7 @@ function renderInformes(){
     data:{labels, datasets:[{label:'Novedades', data:novedadesData, backgroundColor:chartColors.red}]},
     options:{scales:{y:{beginAtZero:true, grid:{color:chartColors.grid}}, x:{grid:{display:false}}}, plugins:{legend:{display:false}}}
   });
+
 }
 
 /* ===================== TOAST ===================== */
@@ -1253,6 +1377,24 @@ function showToast(msg, isError){
   t.style.display = 'block';
   setTimeout(()=>{ t.style.display='none'; }, 3500);
 }
+
+/* ===================== AJUSTE AUTOMÁTICO PARA IMPRESIÓN =====================
+   Chart.js dibuja las gráficas una sola vez con el tamaño que tienen en pantalla.
+   Al entrar a vista de impresión, el navegador cambia el tamaño de las cajas pero
+   el gráfico ya dibujado no se vuelve a acomodar solo. Estos dos eventos fuerzan
+   a las 5 gráficas a redibujarse en el tamaño exacto de la hoja justo antes de
+   imprimir, y a volver a su tamaño de pantalla justo después — sin importar
+   cuántos técnicos haya ni si se agregan o quitan usuarios.
+*/
+function todasLasGraficas(){
+  return [chartEntregadas, chartTiempoProm, chartActivoPausado, chartEficiencia, chartNovedades].filter(c=>c);
+}
+window.addEventListener('beforeprint', ()=>{
+  todasLasGraficas().forEach(c=>c.resize());
+});
+window.addEventListener('afterprint', ()=>{
+  todasLasGraficas().forEach(c=>c.resize());
+});
 </script>
 </body>
 </html>
