@@ -128,6 +128,7 @@ body{
 .nav-item.active{background:var(--panel-raised);color:var(--amber);border-left-color:var(--amber);}
 .sidebar-footer{padding:14px 20px;border-top:1px solid var(--border);}
 .nav-logout-mobile{display:none;}
+.nav-password-mobile{display:none;}
 
 .main{padding:24px 28px;overflow-x:auto;}
 .view{display:none;}
@@ -319,6 +320,7 @@ tr:last-child td{border-bottom:none;}
   }
   .nav-item.active{background:transparent;border-top-color:var(--amber);}
   .nav-logout-mobile{display:flex;color:var(--red);}
+  .nav-password-mobile{display:flex;color:var(--amber);}
   .kanban{grid-template-columns:1fr;}
   .checkbox-grid{grid-template-columns:1fr;}
   .photo-grid{grid-template-columns:repeat(3,1fr);}
@@ -379,9 +381,11 @@ tr:last-child td{border-bottom:none;}
         <div class="nav-item" data-view="nuevo" onclick="switchView('nuevo')" id="nav-nuevo">➕ Nueva Orden</div>
         <div class="nav-item admin-only" data-view="usuarios" onclick="switchView('usuarios')" style="display:none">👥 Usuarios</div>
         <div class="nav-item admin-only" data-view="informes" onclick="switchView('informes')" style="display:none">📊 Informes</div>
+        <div class="nav-item nav-password-mobile" onclick="openPasswordModal()">🔑 Clave</div>
         <div class="nav-item nav-logout-mobile" onclick="doLogout()">🚪 Salir</div>
       </div>
-      <div class="sidebar-footer">
+      <div class="sidebar-footer" style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-outline btn-block btn-sm" onclick="openPasswordModal()">🔑 Cambiar contraseña</button>
         <button class="btn btn-outline btn-block btn-sm" onclick="doLogout()">Cerrar sesión</button>
       </div>
     </div>
@@ -574,6 +578,23 @@ tr:last-child td{border-bottom:none;}
     <div class="modal-foot">
       <button class="btn btn-secondary" onclick="closeModal('modal-usuario')">Cancelar</button>
       <button class="btn btn-primary" onclick="crearUsuario()">Crear usuario</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: CAMBIAR CONTRASEÑA PROPIA ============ -->
+<div class="modal-overlay" id="modal-password">
+  <div class="modal" style="width:400px;">
+    <div class="modal-head"><h3>Cambiar Contraseña</h3><button class="modal-close" onclick="closeModal('modal-password')">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Contraseña actual</label><input type="password" id="pass-actual" placeholder="••••••••"></div>
+      <div class="field"><label>Nueva contraseña</label><input type="password" id="pass-nueva" placeholder="mínimo 6 caracteres"></div>
+      <div class="field"><label>Confirmar nueva contraseña</label><input type="password" id="pass-nueva-confirmar" placeholder="repite la nueva contraseña"></div>
+      <div id="password-error" style="color:var(--red);font-size:12px;font-family:var(--font-mono);display:none;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('modal-password')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-cambiar-pass" onclick="cambiarPassword()">Guardar nueva contraseña</button>
     </div>
   </div>
 </div>
@@ -1127,6 +1148,40 @@ function closeModal(id){
 }
 
 /* ===================== USUARIOS (admin) ===================== */
+function openPasswordModal(){
+  document.getElementById('pass-actual').value='';
+  document.getElementById('pass-nueva').value='';
+  document.getElementById('pass-nueva-confirmar').value='';
+  document.getElementById('password-error').style.display='none';
+  document.getElementById('modal-password').classList.add('open');
+}
+async function cambiarPassword(){
+  const actual = document.getElementById('pass-actual').value;
+  const nueva = document.getElementById('pass-nueva').value;
+  const confirmar = document.getElementById('pass-nueva-confirmar').value;
+  const errEl = document.getElementById('password-error');
+  errEl.style.display='none';
+  if(!actual || !nueva || !confirmar){ errEl.textContent='Completa los 3 campos.'; errEl.style.display='block'; return; }
+  if(nueva.length<6){ errEl.textContent='La nueva contraseña debe tener mínimo 6 caracteres.'; errEl.style.display='block'; return; }
+  if(nueva !== confirmar){ errEl.textContent='La nueva contraseña y su confirmación no coinciden.'; errEl.style.display='block'; return; }
+
+  const btn = document.getElementById('btn-cambiar-pass');
+  btn.disabled = true; btn.textContent='Guardando...';
+  try{
+    // Firebase exige confirmar la contraseña actual (reautenticación) antes de dejar cambiarla
+    const cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, actual);
+    await auth.currentUser.reauthenticateWithCredential(cred);
+    await auth.currentUser.updatePassword(nueva);
+    closeModal('modal-password');
+    showToast('Contraseña actualizada correctamente.');
+  }catch(err){
+    errEl.textContent = friendlyAuthError(err);
+    errEl.style.display='block';
+  }finally{
+    btn.disabled = false; btn.textContent='Guardar nueva contraseña';
+  }
+}
+
 function openUserModal(){
   document.getElementById('user-nombre').value='';
   document.getElementById('user-usuario').value='';
