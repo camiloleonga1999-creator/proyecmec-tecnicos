@@ -270,6 +270,7 @@ tr:last-child td{border-bottom:none;}
 
 .report-table-box{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .report-table{border:none;margin-top:10px;width:100%;min-width:720px;}
+.orders-table{border:none;margin-top:10px;width:100%;min-width:680px;}
 
 @page{ margin:14mm 10mm; }
 @media print{
@@ -301,6 +302,15 @@ tr:last-child td{border-bottom:none;}
   .report-table th:nth-child(6), .report-table td:nth-child(6){width:13%;}
   .report-table th:nth-child(7), .report-table td:nth-child(7){width:12%;}
   .report-table th:nth-child(8), .report-table td:nth-child(8){width:12%;}
+  .orders-table{min-width:0 !important;width:100%;table-layout:fixed;font-size:9.5px;}
+  .orders-table th, .orders-table td{padding:5px 4px;word-break:break-word;white-space:normal;}
+  .orders-table th:nth-child(1), .orders-table td:nth-child(1){width:12%;}
+  .orders-table th:nth-child(2), .orders-table td:nth-child(2){width:16%;}
+  .orders-table th:nth-child(3), .orders-table td:nth-child(3){width:28%;}
+  .orders-table th:nth-child(4), .orders-table td:nth-child(4){width:12%;}
+  .orders-table th:nth-child(5), .orders-table td:nth-child(5){width:11%;}
+  .orders-table th:nth-child(6), .orders-table td:nth-child(6){width:11%;}
+  .orders-table th:nth-child(7), .orders-table td:nth-child(7){width:10%;}
 }
 
 @media screen and (max-width:900px){
@@ -522,6 +532,17 @@ tr:last-child td{border-bottom:none;}
               <th>Tiempo pausado</th><th>Promedio/orden</th><th>Eficiencia</th><th>Novedades</th>
             </tr></thead>
             <tbody id="report-tabla-body"></tbody>
+          </table>
+        </div>
+        <div class="chart-box report-table-box">
+          <h4 style="padding:18px 18px 0;">Detalle por orden individual</h4>
+          <div style="font-size:12px;color:var(--text-muted);padding:0 18px 12px;margin-top:-8px;">Cada fila es una orden entregada, con su propio porcentaje de eficiencia (no agrupado por técnico).</div>
+          <table class="orders-table">
+            <thead><tr>
+              <th>Folio</th><th>Técnico</th><th>Descripción</th><th>Fecha entrega</th>
+              <th>T. activo</th><th>T. pausado</th><th>Eficiencia</th>
+            </tr></thead>
+            <tbody id="report-ordenes-body"></tbody>
           </table>
         </div>
       </div>
@@ -1375,6 +1396,25 @@ function renderInformes(){
         <td class="mono">${fmtDuration(p.entregadas?p.activoMs/p.entregadas:0)}</td>
         <td><b style="color:${eficiencia>=75?'var(--green)':eficiencia>=50?'var(--amber)':'var(--red)'}">${eficiencia.toFixed(0)}%</b></td>
         <td>${p.novedades}</td>
+      </tr>`;
+    }).join('');
+
+  // tabla de detalle por orden individual (no agrupada), ordenada de más reciente a más antigua
+  const ordenesOrdenadas = [...entregadas].sort((a,b)=> b.fechaEntrega - a.fechaEntrega);
+  document.getElementById('report-ordenes-body').innerHTML = ordenesOrdenadas.length===0 ?
+    '<tr><td colspan="7" style="text-align:center;color:var(--text-dim);">Sin órdenes entregadas en este rango</td></tr>' :
+    ordenesOrdenadas.map(t=>{
+      const activoMs = t.tiempoActivoMs||0;
+      const pausadoMs = t.tiempoPausadoMs||0;
+      const eficienciaOrden = (activoMs+pausadoMs) ? (activoMs/(activoMs+pausadoMs)*100) : 100;
+      return `<tr>
+        <td class="mono">${escapeHtml(t.folio)}</td>
+        <td>${escapeHtml(t.tecnicoNombre)}</td>
+        <td>${escapeHtml(t.descripcion)}</td>
+        <td class="mono">${new Date(t.fechaEntrega).toLocaleDateString('es-CO')}</td>
+        <td class="mono">${fmtDuration(activoMs)}</td>
+        <td class="mono">${fmtDuration(pausadoMs)}</td>
+        <td><b style="color:${eficienciaOrden>=75?'var(--green)':eficienciaOrden>=50?'var(--amber)':'var(--red)'}">${eficienciaOrden.toFixed(0)}%</b></td>
       </tr>`;
     }).join('');
 
