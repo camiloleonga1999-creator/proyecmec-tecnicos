@@ -161,6 +161,7 @@ body{
 .kcol[data-state="pausado"] .kcol-head{border-top:3px solid var(--red);}
 .kcol[data-state="entregado"] .kcol-head{border-top:3px solid var(--green);}
 .kcol-body{padding:10px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 220px);overflow-y:auto;}
+.kcol-body > .card{flex-shrink:0;}
 .empty-note{color:var(--text-dim);font-size:12px;text-align:center;padding:20px 10px;font-family:var(--font-mono);}
 
 .card{
@@ -455,7 +456,11 @@ tr:last-child td{border-bottom:none;}
             </div>
             <div class="field">
               <label>Fotos del estado inicial</label>
-              <input type="file" id="new-fotos" accept="image/*" multiple onchange="handlePhotoSelect(event)">
+              <input type="file" id="new-fotos" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoSelect(event)">
+              <div class="toolbar">
+                <button type="button" class="btn btn-primary btn-sm" onclick="tomarFoto()">📷 Tomar foto</button>
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Toma una foto por cada vez que pulses el botón; puedes agregar varias.</div>
               <div class="photo-grid" id="new-photo-preview"></div>
             </div>
             <div class="locked-note">⚠ Al crear la orden, el cronómetro inicia de inmediato y quedará bloqueada: solo podrás reportar novedades o marcar como entregada.</div>
@@ -926,6 +931,11 @@ function resetNuevaOrdenForm(){
   document.getElementById('new-photo-preview').innerHTML='';
 }
 
+function tomarFoto(){
+  const inp = document.getElementById('new-fotos');
+  inp.value = '';
+  inp.click();
+}
 function handlePhotoSelect(ev){
   const files = Array.from(ev.target.files);
   files.forEach(file=>{
