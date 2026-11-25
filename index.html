@@ -569,6 +569,22 @@ tr:last-child td{border-bottom:none;}
 </div>
 
 <!-- ============ MODAL: NOVEDAD ============ -->
+<div class="modal-overlay" id="modal-entrega">
+  <div class="modal" style="width:480px;">
+    <div class="modal-head"><h3>Foto del trabajo terminado</h3><button class="modal-close" onclick="cerrarEntrega()">✕</button></div>
+    <div class="modal-body">
+      <div class="locked-note">📷 Para entregar la orden debes tomar al menos una foto del trabajo terminado.</div>
+      <input type="file" id="entrega-fotos" accept="image/*" capture="environment" style="display:none" onchange="handleEntregaFoto(event)">
+      <div class="toolbar"><button type="button" class="btn btn-primary btn-sm" onclick="tomarFotoEntrega()">📷 Tomar foto</button></div>
+      <div class="photo-grid" id="entrega-preview"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="cerrarEntrega()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-confirmar-entrega" onclick="confirmarEntrega()">Confirmar entrega</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-novedad">
   <div class="modal" style="width:420px;">
     <div class="modal-head"><h3>Reportar Novedad</h3><button class="modal-close" onclick="closeModal('modal-novedad')">✕</button></div>
@@ -1075,6 +1091,10 @@ function openDetalle(id){
       <div class="k" style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Fotos</div>
       <div class="photo-grid">${fotosHtml}</div>
     </div>
+    ${(t.fotosFinales||[]).length ? `<div>
+      <div class="k" style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Fotos del trabajo terminado</div>
+      <div class="photo-grid">${(t.fotosFinales||[]).map(url=>`<div class="photo-thumb"><img src="${url}"></div>`).join('')}</div>
+    </div>` : ''}
     <div>
       <div class="k" style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Novedades</div>
       <div class="novedades-list">${novedadesHtml}</div>
@@ -1087,10 +1107,10 @@ function openDetalle(id){
   let footHtml = '';
   if(canAct && t.estado==='en_proceso'){
     footHtml += `<button class="btn btn-danger" onclick="openNovedadModal('${t.id}')">Reportar novedad</button>`;
-    footHtml += `<button class="btn btn-primary" onclick="marcarEntregado('${t.id}')">Marcar entregado</button>`;
+    footHtml += `<button class="btn btn-primary" onclick="abrirEntrega('${t.id}')">Marcar entregado</button>`;
   } else if(canAct && t.estado==='pausado'){
     footHtml += `<button class="btn btn-secondary" onclick="reanudarOrden('${t.id}')">Reanudar</button>`;
-    footHtml += `<button class="btn btn-primary" onclick="marcarEntregado('${t.id}')">Marcar entregado</button>`;
+    footHtml += `<button class="btn btn-primary" onclick="abrirEntrega('${t.id}')">Marcar entregado</button>`;
   }
   if(currentUser.rol==='admin'){
     footHtml += `<button class="btn btn-outline" onclick="eliminarOrden('${t.id}')">Eliminar</button>`;
@@ -1144,28 +1164,76 @@ async function reanudarOrden(id){
   closeModal('modal-detalle');
   showToast('Orden reanudada.');
 }
-async function marcarEntregado(id){
-  const t = tickets.find(x=>x.id===id);
-  if(!t) return;
-  const now = Date.now();
-  let novedades = [...(t.novedades||[])];
-  if(t.estado==='pausado'){
-    const last = novedades[novedades.length-1];
-    if(last && !last.fin) last.fin = now;
-  }
-  const pausadoMs = novedades.reduce((acc,n)=> acc + (n.fin ? (n.fin-n.inicio) : 0), 0);
-  const activoMs = Math.max(0, now - t.fechaInicio - pausadoMs);
-  await db.collection('tickets').doc(id).update({
-    estado:'entregado',
-    fechaEntrega: now,
-    novedades,
-    tiempoActivoMs: activoMs,
-    tiempoPausadoMs: pausadoMs,
-    tiempoTotalMs: now - t.fechaInicio,
-    updatedAt: now
+let entregaTicketId = null;
+let entregaFotos = [];
+function abrirEntrega(id){
+  entregaTicketId = id;
+  entregaFotos = [];
+  document.getElementById('entrega-preview').innerHTML='';
+  document.getElementById('entrega-fotos').value='';
+  document.getElementById('modal-entrega').classList.add('open');
+}
+function cerrarEntrega(){
+  closeModal('modal-entrega');
+  entregaTicketId = null;
+  entregaFotos = [];
+}
+function tomarFotoEntrega(){
+  const inp = document.getElementById('entrega-fotos');
+  inp.value = '';
+  inp.click();
+}
+function handleEntregaFoto(ev){
+  Array.from(ev.target.files).forEach(file=>{
+    compressImage(file, dataUrl=>{
+      entregaFotos.push(dataUrl);
+      renderEntregaPreview();
+    });
   });
-  closeModal('modal-detalle');
-  showToast('Orden marcada como entregada. Tiempo: '+fmtDuration(activoMs));
+}
+function renderEntregaPreview(){
+  document.getElementById('entrega-preview').innerHTML = entregaFotos.map((d,i)=>`
+    <div class="photo-thumb"><img src="${d}"><button class="rm" onclick="quitarFotoEntrega(${i})">✕</button></div>`).join('');
+}
+function quitarFotoEntrega(i){
+  entregaFotos.splice(i,1);
+  renderEntregaPreview();
+}
+async function confirmarEntrega(){
+  if(entregaFotos.length===0){ showToast('Toma al menos una foto del trabajo terminado.', true); return; }
+  const t = tickets.find(x=>x.id===entregaTicketId);
+  if(!t) return;
+  const btn = document.getElementById('btn-confirmar-entrega');
+  btn.disabled = true; btn.textContent = 'Subiendo fotos...';
+  try{
+    const now = Date.now(); // el tiempo se fija en el momento de confirmar, no cuenta lo que tarde la subida
+    const urls = [];
+    for(const d of entregaFotos){ urls.push(await uploadPhoto(t.folio, d)); }
+    let novedades = [...(t.novedades||[])];
+    if(t.estado==='pausado'){
+      const last = novedades[novedades.length-1];
+      if(last && !last.fin) last.fin = now;
+    }
+    const pausadoMs = novedades.reduce((acc,n)=> acc + (n.fin ? (n.fin-n.inicio) : 0), 0);
+    const activoMs = Math.max(0, now - t.fechaInicio - pausadoMs);
+    await db.collection('tickets').doc(t.id).update({
+      estado:'entregado',
+      fechaEntrega: now,
+      novedades,
+      fotosFinales: urls,
+      tiempoActivoMs: activoMs,
+      tiempoPausadoMs: pausadoMs,
+      tiempoTotalMs: now - t.fechaInicio,
+      updatedAt: now
+    });
+    cerrarEntrega();
+    closeModal('modal-detalle');
+    showToast('Orden entregada. Tiempo: '+fmtDuration(activoMs));
+  }catch(err){
+    showToast('Error al entregar: '+err.message, true);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Confirmar entrega';
+  }
 }
 async function eliminarOrden(id){
   if(!confirm('¿Eliminar esta orden permanentemente?')) return;
